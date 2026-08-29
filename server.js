@@ -12,8 +12,8 @@ const PORT = process.env.PORT || 3000;
 const APP_VERSION = '1.1.0'; // Force redeploy
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Additional CORS headers for mobile support

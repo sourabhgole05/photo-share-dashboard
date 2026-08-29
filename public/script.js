@@ -252,28 +252,14 @@ class PhotoDashboard {
         this.updateUI();
         this.showNotification('Logged out successfully', 'info');
     }
-
     async uploadPhoto() {
-        const file = document.getElementById('photoFile').files[0];
-        const title = document.getElementById('photoTitle').value;
-        const description = document.getElementById('photoDescription').value;
+        const files = Array.from(document.getElementById('photoFile').files || []);
+        const title = document.getElementById('photoTitle').value.trim();
+        const description = document.getElementById('photoDescription').value.trim();
         const category = document.getElementById('photoCategory').value;
 
-        if (!file) {
-            this.showNotification('Please select a file', 'error');
-            return;
-        }
-
-        const MAX_SIZE = 10 * 1024 * 1024;
-        if (file.size > MAX_SIZE) {
-            this.showNotification('File size exceeds 10 MB limit', 'error');
-            return;
-        }
-
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
-        const fileExtension = file.name.split('.').pop().toLowerCase();
-        if (!allowedExtensions.includes(fileExtension)) {
-            this.showNotification('Invalid file type. Allowed: JPG, PNG, GIF, WebP, HEIC', 'error');
+        if (!files.length) {
+            this.showNotification('Please select one or more files', 'error');
             return;
         }
 
@@ -286,62 +272,53 @@ class PhotoDashboard {
                 throw new Error('Authentication token expired. Please login again.');
             }
 
-            const base64Data = await this.fileToBase64(file);
+            const uploadedPhotos = [];
 
-            // Retry logic for mobile upload failures
-            let attempts = 0;
-            const maxAttempts = 3;
+            for (const file of files) {
+                const preparedFile = await this.prepareUploadFile(file);
+                if (!preparedFile) continue;
 
-            while (attempts < maxAttempts) {
-                try {
-                    const response = await fetch('/api/photos/upload', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${this.authToken}`,
-                            'Cache-Control': 'no-cache'
-                        },
-                        body: JSON.stringify({
-                            filename: file.name,
-                            base64Data: base64Data,
-                            title: title || file.name,
-                            description: description,
-                            category: category,
-                            uploader: this.currentUser.username
-                        })
-                    });
+                const base64Data = await this.fileToBase64(preparedFile.file);
+                const response = await fetch('/api/photos/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Cache-Control': 'no-cache'
+                    },
+                    body: JSON.stringify({
+                        filename: preparedFile.file.name,
+                        base64Data: base64Data,
+                        title: title || preparedFile.file.name,
+                        description: description,
+                        category: category,
+                        uploader: this.currentUser.username
+                    })
+                });
 
-                    if (response.ok) {
-                        const result = await response.json();
-                        this.photos.unshift(result.photo);
-                        this.applyFiltersAndSort();
-                        this.closeModal('uploadModal');
-                        this.showNotification('✅ Photo uploaded successfully!', 'success');
-                        document.getElementById('uploadForm').reset();
-                        return;
-                    } else if (response.status === 401) {
-                        throw new Error('Session expired. Please login again.');
-                    } else {
-                        const errorText = await response.text();
-                        console.error('Server response:', response.status, errorText);
-                        let errorMsg = `Upload failed (${response.status})`;
-                        try {
-                            const error = JSON.parse(errorText);
-                            errorMsg = error.error || errorMsg;
-                        } catch (e) {
-                            errorMsg = errorText || errorMsg;
-                        }
-                        throw new Error(errorMsg);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server response:', response.status, errorText);
+                    let errorMsg = `Upload failed (${response.status})`;
+                    try {
+                        const error = JSON.parse(errorText);
+                        errorMsg = error.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = errorText || errorMsg;
                     }
-                } catch (err) {
-                    attempts++;
-                    if (attempts < maxAttempts) {
-                        console.log(`Upload attempt ${attempts} failed, retrying...`);
-                        await new Promise(resolve => setTimeout(resolve, 800));
-                    } else {
-                        throw err;
-                    }
+                    throw new Error(errorMsg);
                 }
+
+                const result = await response.json();
+                uploadedPhotos.push(result.photo);
+            }
+
+            if (uploadedPhotos.length) {
+                this.photos = [...uploadedPhotos, ...this.photos];
+                this.applyFiltersAndSort();
+                this.closeModal('uploadModal');
+                this.showNotification(`? ${uploadedPhotos.length} photo${uploadedPhotos.length > 1 ? 's' : ''} uploaded successfully!`, 'success');
+                document.getElementById('uploadForm').reset();
             }
         } catch (error) {
             console.error('Upload error:', error);
@@ -352,7 +329,61 @@ class PhotoDashboard {
         }
     }
 
+    async prepareUploadFile(file) {
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'avif'];
+        const fileExtension = (file.name || '').split('.').pop().toLowerCase();
+
+        if (!allowedExtensions.includes(fileExtension)) {
+            this.showNotification('Invalid file type. Allowed: JPG, PNG, GIF, WebP, HEIC, HEIF, AVIF', 'error');
+            return null;
+        }
+
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size <= MAX_SIZE) {
+            return { file };
+        }
+
+        try {
+            const bitmap = await createImageBitmap(file);
+            const canvas = document.createElement('canvas');
+            const maxDimension = 1600;
+            let { width, height } = bitmap;
+
+            if (width > maxDimension || height > maxDimension) {
+                const ratio = Math.min(maxDimension / width, maxDimension / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(bitmap, 0, 0, width, height);
+
+            const targetMimeType = file.type && file.type.includes('heic') ? 'image/jpeg' : (file.type || 'image/jpeg');
+            const quality = file.size > 20 * 1024 * 1024 ? 0.6 : 0.75;
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, targetMimeType, quality));
+
+            if (!blob || blob.size > MAX_SIZE) {
+                throw new Error('Selected photo is too large for upload. Please choose a smaller image under 10 MB.');
+            }
+
+            const compressedFile = new File([blob], (file.name || 'photo.jpg').replace(/\.[^.]+$/, '') + '.jpg', {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+            });
+
+            return { file: compressedFile };
+        } catch (error) {
+            console.warn('Compression failed, using original file:', error);
+            this.showNotification('Selected file is too large for upload. Please choose a smaller image under 10 MB.', 'error');
+            return null;
+        }
+    }
+
     async deletePhoto(photoId) {
+
         if (!confirm('Are you sure you want to delete this photo?')) {
             return;
         }
