@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔒 Secure Photo Share Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-hover: #334155;
+            --border: #334155;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+       body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: var(--card-hover);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .role-badge {
+            background: var(--accent);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--card-hover);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .photo-card {
+            background: var(--card);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .photo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .photo-img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .photo-info {
+            padding: 1rem;
+        }
+
+        .photo-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .photo-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+
+        .photo-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-small {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.8rem;
+            flex: 1;
+        }
+
+        /* Slideshow Styles */
+        .slideshow-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(99, 102, 241, 0.8);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+            z-index: 1001;
+        }
+
+        .slideshow-nav:hover {
+            background: rgba(99, 102, 241, 1);
+        }
+
+        .slideshow-prev {
+            left: -70px;
+        }
+
+        .slideshow-next {
+            right: -70px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        textarea.form-control {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Login required */
+        .login-required {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--muted);
+        }
+
+        .login-required i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 1rem;
+            }
+
+            #filterControls {
+                flex-direction: column;
+            }
+
+            #filterControls > div {
+                flex-direction: column !important;
+            }
+
+            .slideshow-prev {
+                left: 10px;
+            }
+
+            .slideshow-next {
+                right: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: 0.8rem;
+            }
+
+            .photo-img {
+                height: 120px;
+            }
+
+            .photo-info {
+                padding: 0.5rem;
+            }
+
+            .btn-small {
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <div class="logo">
+                <i class="fas fa-camera"></i> Secure Photo Share
+            </div>
+            <div id="userSection" style="display: none;">
+                <div class="user-info">
+                    <div class="avatar" id="userAvatar">U</div>
+                    <div>
+                        <div style="font-weight: 600;" id="userName">User</div>
+                        <span class="role-badge" id="userRole">User</span>
+                    </div>
+                    <button class="btn btn-secondary" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+            <div id="loginSection">
+                <button class="btn btn-primary" id="loginBtn" onclick="dashboard.openModal('loginModal')">
+                    <i class="fas fa-sign-in-alt"></i> Admin Login
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Filter & Sort Controls -->
+        <div id="filterControls" style="display: none; margin-bottom: 2rem; padding: 1.5rem; background: var(--card); border-radius: 10px; border: 1px solid var(--border);">
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <label for="categoryFilter" style="font-weight: 600;">Category:</label>
+                    <select class="form-control" id="categoryFilter" style="width: auto; min-width: 150px;">
+                        <option value="">All Categories</option>
+                        <option value="General">General</option>
+                        <option value="Nature">Nature</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Family">Family</option>
+                        <option value="Events">Events</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <label for="sortBy" style="font-weight: 600;">Sort:</label>
+                    <select class="form-control" id="sortBy" style="width: auto; min-width: 150px;">
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="title">By Title (A-Z)</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary" onclick="dashboard.resetFilters()">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+                <button class="btn btn-primary" id="slideshowBtn" onclick="dashboard.startSlideshow()" style="margin-left: auto;">
+                    <i class="fas fa-play"></i> Slideshow
+                </button>
+            </div>
+        </div>
+
+        <div id="gallery" class="gallery">
+            <!-- Photos will be loaded here -->
+        </div>
+
+        <div id="loginRequired" class="login-required" style="display: none;">
+            <i class="fas fa-lock"></i>
+            <h3>Admin Access Required</h3>
+            <p>Please login as admin to upload and manage photos.</p>
+            <button class="btn btn-primary" onclick="dashboard.openModal('loginModal')" style="margin-top: 1rem;">
+                <i class="fas fa-sign-in-alt"></i> Login as Admin
+            </button>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Admin Login</h3>
+                <button class="close-modal" onclick="dashboard.closeModal('loginModal')">&times;</button>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" class="form-control" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" class="form-control" id="password" required>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </div>
+                <div id="loginError" style="color: var(--danger); margin-top: 1rem; display: none;"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Upload New Photo</h3>
+                <button class="close-modal" onclick="dashboard.closeModal('uploadModal')">&times;</button>
+            </div>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="photoFile">Select Image</label>
+                    <input type="file" class="form-control" id="photoFile" accept="image/*" required>
+                </div>
+                <div class="form-group">
+                    <label for="photoTitle">Title</label>
+                    <input type="text" class="form-control" id="photoTitle" placeholder="Enter photo title">
+                </div>
+                <div class="form-group">
+                    <label for="photoDescription">Description</label>
+                    <textarea class="form-control" id="photoDescription" placeholder="Enter description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="photoCategory">Category</label>
+                    <select class="form-control" id="photoCategory">
+                        <option value="General">General</option>
+                        <option value="Nature">Nature</option>
+                        <option value="Travel">Travel</option>
+                        <option value="Family">Family</option>
+                        <option value="Events">Events</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-upload"></i> Upload to GitHub
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Image Viewer Modal -->
+    <div class="modal" id="imageViewerModal">
+        <div class="modal-content" style="max-width: 90vw; max-height: 90vh;">
+            <div class="modal-header">
+                <h3 id="imageViewerTitle">Photo Viewer</h3>
+                <button class="close-modal" onclick="dashboard.closeModal('imageViewerModal')">&times;</button>
+            </div>
+            <div style="text-align: center;">
+                <img id="imageViewerImg" style="max-width: 100%; max-height: 70vh; border-radius: 8px;" alt="Photo">
+            </div>
+            <div id="imageViewerInfo" style="margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <!-- Slideshow Modal -->
+    <div class="modal" id="slideshowModal" style="background: rgba(0,0,0,0.95);">
+        <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+            <button class="close-modal" onclick="dashboard.stopSlideshow()" style="position: absolute; top: 20px; right: 20px; z-index: 1001; font-size: 2rem;">&times;</button>
+            
+            <div style="position: relative; width: 90%; max-width: 800px; text-align: center;">
+                <img id="slideshowImg" style="max-width: 100%; max-height: 70vh; border-radius: 8px;" alt="Slideshow">
+                
+                <!-- Navigation Buttons -->
+                <button class="slideshow-nav slideshow-prev" onclick="dashboard.prevSlide()">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="slideshow-nav slideshow-next" onclick="dashboard.nextSlide()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            
+            <!-- Slideshow Info & Controls -->
+            <div style="color: white; margin-top: 2rem; text-align: center; width: 90%; max-width: 800px;">
+                <h3 id="slideshowTitle" style="margin-bottom: 0.5rem;">Photo Title</h3>
+                <p id="slideshowCounter" style="font-size: 0.9rem; color: #94a3b8;">1 / 10</p>
+                
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button class="btn btn-primary" onclick="dashboard.toggleAutoPlay()">
+                        <i class="fas fa-pause" id="autoPlayIcon"></i> <span id="autoPlayText">Auto Play</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="dashboard.downloadPhoto(dashboard.currentSlideshowPhoto.id)">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
