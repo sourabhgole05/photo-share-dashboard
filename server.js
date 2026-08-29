@@ -18,9 +18,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Additional CORS headers for mobile support
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -201,8 +203,8 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
       });
     }
   } catch (error) {
-    console.error('Upload error:', error.message);
-    res.status(500).json({ error: 'Failed to upload photo' });
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload photo: ' + error.message });
   }
 });
 

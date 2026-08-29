@@ -299,7 +299,7 @@ class PhotoDashboard {
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${this.authToken}`,
-                            'X-Requested-With': 'XMLHttpRequest'
+                            'Cache-Control': 'no-cache'
                         },
                         body: JSON.stringify({
                             filename: file.name,
@@ -322,8 +322,16 @@ class PhotoDashboard {
                     } else if (response.status === 401) {
                         throw new Error('Session expired. Please login again.');
                     } else {
-                        const error = await response.json();
-                        throw new Error(error.error || `Upload failed (${response.status})`);
+                        const errorText = await response.text();
+                        console.error('Server response:', response.status, errorText);
+                        let errorMsg = `Upload failed (${response.status})`;
+                        try {
+                            const error = JSON.parse(errorText);
+                            errorMsg = error.error || errorMsg;
+                        } catch (e) {
+                            errorMsg = errorText || errorMsg;
+                        }
+                        throw new Error(errorMsg);
                     }
                 } catch (err) {
                     attempts++;
