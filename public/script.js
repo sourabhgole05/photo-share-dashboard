@@ -61,8 +61,10 @@ class PhotoDashboard {
     async verifyToken() {
         try {
             const response = await fetch('/api/auth/me', {
+                method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.authToken}`
+                    'Authorization': `Bearer ${this.authToken}`,
+                    'Cache-Control': 'no-cache'
                 }
             });
 
@@ -70,9 +72,13 @@ class PhotoDashboard {
                 const data = await response.json();
                 this.currentUser = data.user;
                 this.updateUI();
-            } else {
+                // Load photos after verification
+                await this.loadPhotos();
+            } else if (response.status === 401 || response.status === 403) {
                 localStorage.removeItem('authToken');
                 this.authToken = null;
+                this.currentUser = null;
+                this.updateUI();
             }
         } catch (error) {
             console.error('Token verification failed:', error);
@@ -213,7 +219,8 @@ class PhotoDashboard {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
                 },
                 body: JSON.stringify({ username, password })
             });
@@ -225,6 +232,8 @@ class PhotoDashboard {
                 localStorage.setItem('authToken', data.token);
                 this.closeModal('loginModal');
                 this.updateUI();
+                // Load photos after login
+                await this.loadPhotos();
                 this.showNotification('Login successful!', 'success');
             } else {
                 const error = await response.json();
@@ -255,14 +264,12 @@ class PhotoDashboard {
             return;
         }
 
-        // Validate file size
         const MAX_SIZE = 10 * 1024 * 1024;
         if (file.size > MAX_SIZE) {
             this.showNotification('File size exceeds 10 MB limit', 'error');
             return;
         }
 
-        // Validate file type
         const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
         const fileExtension = file.name.split('.').pop().toLowerCase();
         if (!allowedExtensions.includes(fileExtension)) {
@@ -270,53 +277,68 @@ class PhotoDashboard {
             return;
         }
 
+        const submitBtn = document.querySelector('#uploadForm button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+        submitBtn.disabled = true;
+
         try {
-            // Show loading state
-            const submitBtn = document.querySelector('#uploadForm button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-            submitBtn.disabled = true;
-
-            const base64Data = await this.fileToBase64(file);
-
-            // Ensure token exists
             if (!this.authToken) {
                 throw new Error('Authentication token expired. Please login again.');
             }
 
-            const response = await fetch('/api/photos/upload', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.authToken}`
-                },
-                body: JSON.stringify({
-                    filename: file.name,
-                    base64Data: base64Data,
-                    title: title || file.name,
-                    description: description,
-                    category: category,
-                    uploader: this.currentUser.username
-                })
-            });
+            const base64Data = await this.fileToBase64(file);
 
-            if (response.ok) {
-                const result = await response.json();
-                this.photos.unshift(result.photo);
-                this.applyFiltersAndSort();
-                this.closeModal('uploadModal');
-                this.showNotification('✅ Photo uploaded successfully!', 'success');
-                document.getElementById('uploadForm').reset();
-            } else {
-                const error = await response.json();
-                throw new Error(error.error || 'Upload failed');
+            // Retry logic for mobile upload failures
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            while (attempts < maxAttempts) {
+                try {
+                    const response = await fetch('/api/photos/upload', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.authToken}`,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({
+                            filename: file.name,
+                            base64Data: base64Data,
+                            title: title || file.name,
+                            description: description,
+                            category: category,
+                            uploader: this.currentUser.username
+                        })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        this.photos.unshift(result.photo);
+                        this.applyFiltersAndSort();
+                        this.closeModal('uploadModal');
+                        this.showNotification('✅ Photo uploaded successfully!', 'success');
+                        document.getElementById('uploadForm').reset();
+                        return;
+                    } else if (response.status === 401) {
+                        throw new Error('Session expired. Please login again.');
+                    } else {
+                        const error = await response.json();
+                        throw new Error(error.error || `Upload failed (${response.status})`);
+                    }
+                } catch (err) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        console.log(`Upload attempt ${attempts} failed, retrying...`);
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                    } else {
+                        throw err;
+                    }
+                }
             }
         } catch (error) {
             console.error('Upload error:', error);
-            this.showNotification(error.message || 'Failed to upload photo', 'error');
+            this.showNotification(error.message || 'Failed to upload. Check connection and try again.', 'error');
         } finally {
-            // Restore button state
-            const submitBtn = document.querySelector('#uploadForm button[type="submit"]');
             submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload to GitHub';
             submitBtn.disabled = false;
         }
@@ -381,17 +403,30 @@ class PhotoDashboard {
 
     async loadPhotos() {
         try {
-            const response = await fetch('/api/photos');
+            // Add mobile-specific headers to prevent caching issues
+            const response = await fetch('/api/photos?t=' + Date.now(), {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            });
             if (response.ok) {
-                this.photos = await response.json();
+                const data = await response.json();
+                this.photos = Array.isArray(data) ? data : [];
                 this.applyFiltersAndSort();
                 this.updateUI();
             } else {
-                throw new Error('Failed to load photos');
+                console.warn('Failed to load photos:', response.status);
+                this.photos = [];
+                this.applyFiltersAndSort();
+                this.updateUI();
             }
         } catch (error) {
             console.error('Error loading photos:', error);
-            this.showNotification('Failed to load photos', 'error');
+            this.photos = [];
+            this.applyFiltersAndSort();
+            this.updateUI();
         }
     }
 

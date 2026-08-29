@@ -105,6 +105,8 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Add cache control headers for mobile
+    res.header('Cache-Control', 'no-cache');
     res.json({
       token,
       user: { id: user.id, username: user.username, role: user.role }
@@ -116,9 +118,16 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.get('/api/auth/me', authenticateToken, (req, res) => {
-  res.json({
-    user: { id: req.user.id, username: req.user.username, role: req.user.role }
-  });
+  try {
+    // Add cache control headers for mobile
+    res.header('Cache-Control', 'no-cache');
+    res.json({
+      user: { id: req.user.id, username: req.user.username, role: req.user.role }
+    });
+  } catch (error) {
+    console.error('Auth check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res) => {
@@ -198,7 +207,19 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
 });
 
 app.get('/api/photos', (req, res) => {
-  res.json(photos);
+  try {
+    // Send with no-cache headers for mobile
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.header('Pragma', 'no-cache');
+    res.header('Expires', '0');
+    
+    // Ensure photos is an array
+    const photosData = Array.isArray(photos) ? photos : [];
+    res.json(photosData);
+  } catch (error) {
+    console.error('Error fetching photos:', error);
+    res.json([]);
+  }
 });
 
 app.get('/api/photos/:id', (req, res) => {
