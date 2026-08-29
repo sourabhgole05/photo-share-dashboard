@@ -15,14 +15,5 @@
       "src": "/.*",
       "dest": "/public/index.html"
     }
-  ],
-  "env": {
-    "GITHUB_TOKEN": "@github_token",
-    "GITHUB_OWNER": "@github_owner",
-    "GITHUB_REPO": "@github_repo",
-    "GITHUB_BRANCH": "@github_branch",
-    "ADMIN_USERNAME": "@admin_username",
-    "ADMIN_PASSWORD": "@admin_password",
-    "JWT_SECRET": "@jwt_secret"
-  }
+  ]
 }
