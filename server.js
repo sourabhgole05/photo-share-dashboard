@@ -9,6 +9,7 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const APP_VERSION = '1.1.0'; // Force redeploy
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
