@@ -58,6 +58,51 @@ let nextPhotoId =  1;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
 
+async function getPhotosFromGitHub() {
+  try {
+    if (!process.env.GITHUB_TOKEN || !process.env.GITHUB_OWNER || !process.env.GITHUB_REPO) {
+      return [];
+    }
+
+    const branch = process.env.GITHUB_BRANCH || 'main';
+    const response = await octokit.rest.repos.getContent({
+      owner: process.env.GITHUB_OWNER,
+      repo: process.env.GITHUB_REPO,
+      path: 'photos',
+      ref: branch
+    });
+
+    if (!Array.isArray(response.data)) {
+      return [];
+    }
+
+    return response.data
+      .filter(file => file.type === 'file' && /\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i.test(file.name))
+      .map(file => {
+        const match = /^([0-9]+)-/i.exec(file.name || '');
+        const uploadedAt = match ? new Date(Number(match[1])).toISOString() : new Date().toISOString();
+        const title = file.name.replace(/\.[^.]+$/, '');
+
+        return {
+          id: Number(match ? match[1] : Date.now() + Math.random()),
+          filename: file.name,
+          sha: file.sha,
+          title: title || file.name,
+          description: '',
+          category: 'General',
+          uploader: 'admin',
+          uploadedAt,
+          url: `https://raw.githubusercontent.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/${branch}/photos/${file.name}`,
+          size: file.size || 0
+        };
+      })
+      .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+  } catch (error) {
+    console.warn('Unable to sync photos from GitHub:', error.message);
+    return [];
+  }
+}
+
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -178,7 +223,7 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
       });
 
       const photo = {
-        id: nextPhotoId++,
+        id: Date.now(),
         filename: uniqueFilename,
         sha: ghResponse.data.content.sha,
         title: title || filename,
@@ -190,7 +235,7 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
         size: imageBuffer.length
       };
 
-      photos.push(photo);
+      photos = [photo, ...photos.filter(item => item.filename !== photo.filename)];
 
       res.status(201).json({
         message: 'Photo uploaded successfully',
@@ -208,34 +253,43 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
-app.get('/api/photos', (req, res) => {
+app.get('/api/photos', async (req, res) => {
   try {
-    // Send with no-cache headers for mobile
     res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.header('Pragma', 'no-cache');
     res.header('Expires', '0');
-    
-    // Ensure photos is an array
-    const photosData = Array.isArray(photos) ? photos : [];
-    res.json(photosData);
+
+    const remotePhotos = await getPhotosFromGitHub();
+    photos = remotePhotos.length ? remotePhotos : photos;
+    res.json(Array.isArray(photos) ? photos : []);
   } catch (error) {
     console.error('Error fetching photos:', error);
-    res.json([]);
+    res.json(Array.isArray(photos) ? photos : []);
   }
 });
 
-app.get('/api/photos/:id', (req, res) => {
-  const photo = photos.find(p => p.id === parseInt(req.params.id));
+app.get('/api/photos/:id', async (req, res) => {
+  try {
+    const remotePhotos = await getPhotosFromGitHub();
+    photos = remotePhotos.length ? remotePhotos : photos;
+    const photo = photos.find(p => p.id === parseInt(req.params.id));
 
-  if (!photo) {
-    return res.status(404).json({ error: 'Photo not found' });
+    if (!photo) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+
+    res.json(photo);
+  } catch (error) {
+    console.error('Error fetching photo by id:', error);
+    res.status(500).json({ error: 'Failed to load photo' });
   }
-
-  res.json(photo);
 });
 
 app.delete('/api/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const remotePhotos = await getPhotosFromGitHub();
+    photos = remotePhotos.length ? remotePhotos : photos;
+
     const photoId = parseInt(req.params.id);
     const photoIndex = photos.findIndex(p => p.id === photoId);
 
@@ -258,7 +312,7 @@ app.delete('/api/photos/:id', authenticateToken, requireAdmin, async (req, res) 
       console.error('GitHub delete error:', githubError);
     }
 
-    photos.splice(photoIndex, 1);
+    photos = photos.filter(item => item.id !== photoId);
 
     res.json({ message: 'Photo deleted successfully' });
   } catch (error) {
