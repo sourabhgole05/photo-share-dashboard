@@ -117,23 +117,56 @@ class PhotoDashboard {
 
     getAdminGalleryHTML() {
         return `
-            <div style="grid-column: 1/-1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
-                <h2>Photo Management</h2>
-                <button class="btn btn-primary" onclick="dashboard.openModal('uploadModal')">
-                    <i class="fas fa-upload"></i> Upload Photo
-                </button>
+            <div style="grid-column: 1/-1; background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.8rem;">📸 Photo Management</h2>
+                        <p style="margin: 0.5rem 0 0 0; opacity: 0.9;">Welcome, <strong>${this.currentUser.username}</strong>! Manage your family photos.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="dashboard.openModal('uploadModal')" style="background: white; color: var(--accent); border: none;">
+                        <i class="fas fa-upload"></i> Upload Photo
+                    </button>
+                </div>
+            </div>
+            <div style="grid-column: 1/-1; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                <div style="background: var(--card); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="font-size: 2rem; color: var(--accent); margin-bottom: 0.5rem;">📊</div>
+                    <div style="font-size: 0.9rem; color: var(--muted);">Total Photos</div>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--text);">${this.photos.length}</div>
+                </div>
+                <div style="background: var(--card); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="font-size: 2rem; color: var(--success); margin-bottom: 0.5rem;">👥</div>
+                    <div style="font-size: 0.9rem; color: var(--muted);">Users</div>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--text);">3</div>
+                </div>
+                <div style="background: var(--card); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="font-size: 2rem; color: var(--warning); margin-bottom: 0.5rem;">🔒</div>
+                    <div style="font-size: 0.9rem; color: var(--muted);">Security</div>
+                    <div style="font-size: 1.8rem; font-weight: bold; color: var(--text);">256-bit</div>
+                </div>
+            </div>
+            <div style="grid-column: 1/-1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>Your Photos</h3>
+                <span style="font-size: 0.9rem; color: var(--muted);">${this.filteredPhotos.length} photos found</span>
             </div>
             <div id="photosContainer" style="grid-column: 1/-1;">
-                ${this.filteredPhotos.length > 0 ? this.filteredPhotos.map(photo => this.getPhotoCardHTML(photo, true)).join('') : '<p style="color: var(--muted); text-align: center; grid-column: 1/-1;">No photos found</p>'}
+                ${this.filteredPhotos.length > 0 ? this.filteredPhotos.map(photo => this.getPhotoCardHTML(photo, true)).join('') : '<p style="color: var(--muted); text-align: center; grid-column: 1/-1; padding: 2rem;">No photos yet. Start by uploading your first photo! 📸</p>'}
             </div>
         `;
     }
 
     getUserGalleryHTML() {
         return `
-            <h2 style="grid-column: 1/-1; margin-bottom: 1rem;">Photo Gallery</h2>
+            <div style="grid-column: 1/-1; background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem; color: white;">
+                <h2 style="margin: 0; font-size: 1.8rem;">📸 Photo Gallery</h2>
+                <p style="margin: 0.5rem 0 0 0; opacity: 0.9;">Welcome, <strong>${this.currentUser.username}</strong>! Browse and download photos.</p>
+            </div>
+            <div style="grid-column: 1/-1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>Shared Photos</h3>
+                <span style="font-size: 0.9rem; color: var(--muted);">${this.filteredPhotos.length} photos available</span>
+            </div>
             <div id="photosContainer" style="grid-column: 1/-1;">
-                ${this.filteredPhotos.length > 0 ? this.filteredPhotos.map(photo => this.getPhotoCardHTML(photo, false)).join('') : '<p style="color: var(--muted); text-align: center;">No photos found</p>'}
+                ${this.filteredPhotos.length > 0 ? this.filteredPhotos.map(photo => this.getPhotoCardHTML(photo, false)).join('') : '<p style="color: var(--muted); text-align: center; grid-column: 1/-1; padding: 2rem;">No photos to display yet. Check back soon! 📸</p>'}
             </div>
         `;
     }
@@ -222,8 +255,34 @@ class PhotoDashboard {
             return;
         }
 
+        // Validate file size
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            this.showNotification('File size exceeds 10 MB limit', 'error');
+            return;
+        }
+
+        // Validate file type
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'];
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        if (!allowedExtensions.includes(fileExtension)) {
+            this.showNotification('Invalid file type. Allowed: JPG, PNG, GIF, WebP, HEIC', 'error');
+            return;
+        }
+
         try {
+            // Show loading state
+            const submitBtn = document.querySelector('#uploadForm button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            submitBtn.disabled = true;
+
             const base64Data = await this.fileToBase64(file);
+
+            // Ensure token exists
+            if (!this.authToken) {
+                throw new Error('Authentication token expired. Please login again.');
+            }
 
             const response = await fetch('/api/photos/upload', {
                 method: 'POST',
@@ -234,7 +293,7 @@ class PhotoDashboard {
                 body: JSON.stringify({
                     filename: file.name,
                     base64Data: base64Data,
-                    title: title,
+                    title: title || file.name,
                     description: description,
                     category: category,
                     uploader: this.currentUser.username
@@ -246,14 +305,20 @@ class PhotoDashboard {
                 this.photos.unshift(result.photo);
                 this.applyFiltersAndSort();
                 this.closeModal('uploadModal');
-                this.showNotification('Photo uploaded to GitHub successfully!', 'success');
+                this.showNotification('✅ Photo uploaded successfully!', 'success');
                 document.getElementById('uploadForm').reset();
             } else {
                 const error = await response.json();
                 throw new Error(error.error || 'Upload failed');
             }
         } catch (error) {
-            this.showNotification(error.message, 'error');
+            console.error('Upload error:', error);
+            this.showNotification(error.message || 'Failed to upload photo', 'error');
+        } finally {
+            // Restore button state
+            const submitBtn = document.querySelector('#uploadForm button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload to GitHub';
+            submitBtn.disabled = false;
         }
     }
 

@@ -370,7 +370,7 @@
             </div>
             <div id="loginSection">
                 <button class="btn btn-primary" id="loginBtn" onclick="dashboard.openModal('loginModal')">
-                    <i class="fas fa-sign-in-alt"></i> Admin Login
+                    <i class="fas fa-sign-in-alt"></i> Login
                 </button>
             </div>
         </div>
@@ -414,10 +414,25 @@
 
         <div id="loginRequired" class="login-required" style="display: none;">
             <i class="fas fa-lock"></i>
-            <h3>Admin Access Required</h3>
-            <p>Please login as admin to upload and manage photos.</p>
-            <button class="btn btn-primary" onclick="dashboard.openModal('loginModal')" style="margin-top: 1rem;">
-                <i class="fas fa-sign-in-alt"></i> Login as Admin
+            <h3>📸 Secure Photo Share Dashboard</h3>
+            <p>Login to view, manage, and share family photos securely!</p>
+            <div style="margin-top: 1.5rem; padding: 1.5rem; background: var(--card); border-radius: 10px; text-align: left; max-width: 400px;">
+                <p style="margin-bottom: 1rem; font-weight: 600;">🔐 Test Credentials:</p>
+                <div style="font-size: 0.9rem; line-height: 1.8;">
+                    <div style="margin-bottom: 0.8rem;">
+                        <strong>Admin:</strong><br/>
+                        Username: <code style="background: var(--bg); padding: 2px 6px; border-radius: 4px;">admin</code><br/>
+                        Password: <code style="background: var(--bg); padding: 2px 6px; border-radius: 4px;">admin123</code>
+                    </div>
+                    <div>
+                        <strong>Test User:</strong><br/>
+                        Username: <code style="background: var(--bg); padding: 2px 6px; border-radius: 4px;">testuser</code><br/>
+                        Password: <code style="background: var(--bg); padding: 2px 6px; border-radius: 4px;">test123</code>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="dashboard.openModal('loginModal')" style="margin-top: 1.5rem;">
+                <i class="fas fa-sign-in-alt"></i> Login Now
             </button>
         </div>
     </div>
@@ -426,9 +441,24 @@
     <div class="modal" id="loginModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Admin Login</h3>
+                <h3>User Login</h3>
                 <button class="close-modal" onclick="dashboard.closeModal('loginModal')">&times;</button>
             </div>
+            
+            <div style="background: var(--bg); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid var(--accent);">
+                <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0.5rem;">📝 <strong>Test Credentials:</strong></p>
+                <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text);">
+                    <div style="margin-bottom: 0.5rem;">
+                        <strong>👨‍💼 Admin:</strong> admin / admin123<br/>
+                        <span style="color: var(--muted);">Can upload, view, and delete photos</span>
+                    </div>
+                    <div>
+                        <strong>👤 Test Users:</strong> testuser / test123 or viewer / viewer123<br/>
+                        <span style="color: var(--muted);">Can only view and download photos</span>
+                    </div>
+                </div>
+            </div>
+
             <form id="loginForm">
                 <div class="form-group">
                     <label for="username">Username</label>
@@ -458,7 +488,10 @@
             <form id="uploadForm">
                 <div class="form-group">
                     <label for="photoFile">Select Image</label>
-                    <input type="file" class="form-control" id="photoFile" accept="image/*" required>
+                    <small style="color: var(--muted); display: block; margin-bottom: 0.5rem;">
+                        📁 Supported: JPG, PNG, GIF, WebP, HEIC (Max 10 MB)
+                    </small>
+                    <input type="file" class="form-control" id="photoFile" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" required>
                 </div>
                 <div class="form-group">
                     <label for="photoTitle">Title</label>

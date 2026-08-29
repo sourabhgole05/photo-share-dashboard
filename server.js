@@ -15,6 +15,18 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Additional CORS headers for mobile support
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 let users = [
@@ -120,50 +132,66 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
     const fileExtension = path.extname(filename.toLowerCase());
 
     if (!allowedExtensions.includes(fileExtension)) {
-      return res.status(400).json({ error: 'Invalid file type' });
+      return res.status(400).json({ error: 'Invalid file type. Allowed: JPG, JPEG, PNG, GIF, WebP, HEIC' });
     }
 
     const base64DataWithoutPrefix = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
     const imageBuffer = Buffer.from(base64DataWithoutPrefix, 'base64');
 
-    const MAX_SIZE =  10 * 1024 * 1024;
+    const MAX_SIZE = 10 * 1024 * 1024;
     if (imageBuffer.length > MAX_SIZE) {
       return res.status(400).json({ error: 'Image size exceeds the 10 MB limit' });
+    }
+
+    // Check GitHub token
+    if (!process.env.GITHUB_TOKEN) {
+      return res.status(500).json({ error: 'GitHub token not configured. Contact administrator.' });
+    }
+
+    if (!process.env.GITHUB_OWNER || !process.env.GITHUB_REPO) {
+      return res.status(500).json({ error: 'GitHub repository not configured. Contact administrator.' });
     }
 
     const uniqueFilename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${fileExtension}`;
     const filePathInRepo = `photos/${uniqueFilename}`;
 
-    const ghResponse = await octokit.rest.repos.createOrUpdateFileContents({
-      owner: process.env.GITHUB_OWNER,
-      repo: process.env.GITHUB_REPO,
-      path: filePathInRepo,
-      message: `Upload photo: ${title || filename}`,
-      content: imageBuffer.toString('base64'),
-      branch: process.env.GITHUB_BRANCH || 'main'
-    });
+    try {
+      const ghResponse = await octokit.rest.repos.createOrUpdateFileContents({
+        owner: process.env.GITHUB_OWNER,
+        repo: process.env.GITHUB_REPO,
+        path: filePathInRepo,
+        message: `Upload photo: ${title || filename}`,
+        content: imageBuffer.toString('base64'),
+        branch: process.env.GITHUB_BRANCH || 'main'
+      });
 
-    const photo = {
-      id: nextPhotoId++,
-      filename: uniqueFilename,
-      sha: ghResponse.data.content.sha,
-      title: title || filename,
-      description: description || '',
-      category: category || 'General',
-      uploader: uploader || req.user.username,
-      uploadedAt: new Date().toISOString(),
-      url: `https://raw.githubusercontent.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/${process.env.GITHUB_BRANCH || 'main'}/${filePathInRepo}`,
-      size: imageBuffer.length
-    };
+      const photo = {
+        id: nextPhotoId++,
+        filename: uniqueFilename,
+        sha: ghResponse.data.content.sha,
+        title: title || filename,
+        description: description || '',
+        category: category || 'General',
+        uploader: uploader || req.user.username,
+        uploadedAt: new Date().toISOString(),
+        url: `https://raw.githubusercontent.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/${process.env.GITHUB_BRANCH || 'main'}/${filePathInRepo}`,
+        size: imageBuffer.length
+      };
 
-    photos.push(photo);
+      photos.push(photo);
 
-    res.status(201).json({
-      message: 'Photo uploaded successfully',
-      photo
-    });
+      res.status(201).json({
+        message: 'Photo uploaded successfully',
+        photo
+      });
+    } catch (githubError) {
+      console.error('GitHub API error:', githubError.message);
+      return res.status(500).json({ 
+        error: 'Failed to upload to GitHub. Please check your GitHub token and repository settings.' 
+      });
+    }
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Upload error:', error.message);
     res.status(500).json({ error: 'Failed to upload photo' });
   }
 });
