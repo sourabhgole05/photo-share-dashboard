@@ -338,7 +338,7 @@ class PhotoDashboard {
             return null;
         }
 
-        const MAX_SIZE = 10 * 1024 * 1024;
+        const MAX_SIZE = 50 * 1024 * 1024;
         if (file.size <= MAX_SIZE) {
             return { file };
         }
