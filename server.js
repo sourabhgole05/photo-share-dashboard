@@ -195,7 +195,7 @@ app.post('/api/photos/upload', authenticateToken, requireAdmin, async (req, res)
     const base64DataWithoutPrefix = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
     const imageBuffer = Buffer.from(base64DataWithoutPrefix, 'base64');
 
-    const MAX_SIZE = 10 * 1024 * 1024;
+    const MAX_SIZE = 50 * 1024 * 1024;
     if (imageBuffer.length > MAX_SIZE) {
       return res.status(400).json({ error: 'Image size exceeds the 10 MB limit' });
     }
